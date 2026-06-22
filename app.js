@@ -1,15 +1,17 @@
 const STORAGE_KEYS = {
-  targets: "calorieCarbTargets",
+  targets: "calorieCarbTargetsByDate",
   entries: "calorieCarbEntries",
   selectedDate: "calorieCarbSelectedDate",
   calendarMonth: "calorieCarbCalendarMonth",
 };
 
+const DEFAULT_TARGETS = {
+  calories: { min: 1500, max: 2200 },
+  carbs: { min: 130, max: 250 },
+};
+
 const state = {
-  targets: {
-    calories: { min: 1500, max: 2200 },
-    carbs: { min: 130, max: 250 },
-  },
+  targetsByDate: {},
   entries: {},
   selectedDate: new Date().toISOString().slice(0, 10),
   calendarMonth: new Date().toISOString().slice(0, 7),
@@ -53,14 +55,14 @@ function loadState() {
   const storedSelectedDate = localStorage.getItem(STORAGE_KEYS.selectedDate);
   const storedCalendarMonth = localStorage.getItem(STORAGE_KEYS.calendarMonth);
 
-  if (storedTargets) state.targets = JSON.parse(storedTargets);
+  if (storedTargets) state.targetsByDate = JSON.parse(storedTargets);
   if (storedEntries) state.entries = JSON.parse(storedEntries);
   if (storedSelectedDate) state.selectedDate = storedSelectedDate;
   if (storedCalendarMonth) state.calendarMonth = storedCalendarMonth;
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEYS.targets, JSON.stringify(state.targets));
+  localStorage.setItem(STORAGE_KEYS.targets, JSON.stringify(state.targetsByDate));
   localStorage.setItem(STORAGE_KEYS.entries, JSON.stringify(state.entries));
   localStorage.setItem(STORAGE_KEYS.selectedDate, state.selectedDate);
   localStorage.setItem(STORAGE_KEYS.calendarMonth, state.calendarMonth);
@@ -77,6 +79,10 @@ function parseNum(value) {
 
 function getEntriesForDate(date) {
   return state.entries[date] || [];
+}
+
+function getTargetsForDate(date) {
+  return state.targetsByDate[date] || DEFAULT_TARGETS;
 }
 
 function getTotals(date) {
@@ -117,28 +123,30 @@ function dateToYMD(date) {
 }
 
 function setInputsFromTargets() {
-  el.calMin.value = state.targets.calories.min;
-  el.calMax.value = state.targets.calories.max;
-  el.carbMin.value = state.targets.carbs.min;
-  el.carbMax.value = state.targets.carbs.max;
+  const targets = getTargetsForDate(state.selectedDate);
+  el.calMin.value = targets.calories.min;
+  el.calMax.value = targets.calories.max;
+  el.carbMin.value = targets.carbs.min;
+  el.carbMax.value = targets.carbs.max;
 }
 
 function updateSummary() {
   const totals = getTotals(state.selectedDate);
-  const calStatus = getColorStatus(totals.calories, state.targets.calories);
-  const carbStatus = getColorStatus(totals.carbs, state.targets.carbs);
+  const targets = getTargetsForDate(state.selectedDate);
+  const calStatus = getColorStatus(totals.calories, targets.calories);
+  const carbStatus = getColorStatus(totals.carbs, targets.carbs);
 
   el.dailySummary.innerHTML = `
     <div class="p-3 rounded-xl border border-slate-700 bg-slate-900/60">
       <div class="text-sm text-slate-400">Calories</div>
       <div class="text-lg font-semibold ${calStatus === "below" ? "text-yellow-300" : calStatus === "above" ? "text-red-300" : "text-green-300"}">
-        ${totals.calories} / ${state.targets.calories.min} - ${state.targets.calories.max}
+        ${totals.calories} / ${targets.calories.min} - ${targets.calories.max}
       </div>
     </div>
     <div class="p-3 rounded-xl border border-slate-700 bg-slate-900/60">
       <div class="text-sm text-slate-400">Carbs (g)</div>
       <div class="text-lg font-semibold ${carbStatus === "below" ? "text-yellow-300" : carbStatus === "above" ? "text-red-300" : "text-green-300"}">
-        ${totals.carbs} / ${state.targets.carbs.min} - ${state.targets.carbs.max}
+        ${totals.carbs} / ${targets.carbs.min} - ${targets.carbs.max}
       </div>
     </div>
     <div class="p-3 rounded-xl border border-slate-700 bg-slate-900/60 text-sm text-slate-300">
@@ -186,8 +194,9 @@ function updateCalendar() {
     const date = new Date(year, month - 1, day);
     const ymd = dateToYMD(date);
     const totals = getTotals(ymd);
-    const calStatus = getColorStatus(totals.calories, state.targets.calories);
-    const carbStatus = getColorStatus(totals.carbs, state.targets.carbs);
+    const targets = getTargetsForDate(ymd);
+    const calStatus = getColorStatus(totals.calories, targets.calories);
+    const carbStatus = getColorStatus(totals.carbs, targets.carbs);
 
     let cellClass = "day-inrange";
     if (calStatus === "above" || carbStatus === "above") cellClass = "day-above";
@@ -288,7 +297,8 @@ function saveTargets() {
   const carbMax = parseNum(el.carbMax.value);
   if (calMin > calMax) return alert("Calories min cannot be greater than max.");
   if (carbMin > carbMax) return alert("Carbs min cannot be greater than max.");
-  state.targets = {
+
+  state.targetsByDate[state.selectedDate] = {
     calories: { min: calMin, max: calMax },
     carbs: { min: carbMin, max: carbMax },
   };
